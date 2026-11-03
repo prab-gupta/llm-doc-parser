@@ -2,7 +2,7 @@
 
 Turn any document — PDF, web page, image export, or spreadsheet — into clean, validated JSON with an LLM.
 
-This is a small, runnable demo of a pattern I build in production: **multi-format ingest → LLM extraction → schema validation**. At FlowSpace I use the same shape in a listing bot that reads a workspace-provider brochure (in any format) and drafts a structured listing for human review before it hits the backend.
+This is a small, runnable demo of a pattern I build in production: **multi-format ingest → LLM extraction → schema validation**. In production I use the same shape in a listing bot that reads a workspace-provider brochure (in any format) and drafts a structured listing for human review before it hits the backend.
 
 ## Why it's useful
 - One command turns messy source docs into a fixed JSON schema.

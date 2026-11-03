@@ -1,8 +1,8 @@
-# Document Parser Blueprint — reusing the FlowSpace listing tool architecture
+# Document Parser Blueprint — reusing a production listing-pipeline architecture
 
 Created: 2026-11-03
 
-**Source repo:** `flowspace-listing-web` (archived at `~/flowspace-archive/repos/flowspace-listing-web`, branch `feat/backlog-cards`, last commit `f18fca9`). All paths below are relative to that repo.
+**Source:** a private production listing pipeline (commit `f18fca9`). All paths below are relative to that repo.
 **Audience:** engineer building a generic, domain-neutral document parser.
 **Code:** verbatim excerpts for every invariant and stage are in §11.
 **Stack it proves out:** Next.js 16 App Router on Vercel, AI SDK 7 + Anthropic, Neon Postgres, Supabase Storage, vitest.
@@ -14,7 +14,7 @@ Created: 2026-11-03
 Strip away the coworking domain and the tool is a **messy-documents → validated structured records → external system** pipeline:
 
 - **Input:** anything a broker sends — PDF brochures, xlsx/Google Sheet availability grids, pptx decks, `.eml` emails, web pages, SharePoint folders, JS-rendered decks, pasted text.
-- **Output:** one schema-valid record per entity (a "listing" = venue + N office line items), pushed to the FlowSpace API.
+- **Output:** one schema-valid record per entity (a "listing" = venue + N office line items), pushed to the backend API.
 - **Between:** classify → extract (LLM, schema-constrained) → pin/normalize (code) → verify against source → validate → human review → idempotent push.
 
 The domain lives in about 5 files. Everything else is reusable plumbing.
@@ -50,7 +50,7 @@ These are the decisions that made the tool trustworthy. A document parser that k
 4. **Provenance on every row.** The intermediate carries a row reference (`doc:label#3`, sheet cell) per extracted item so validation and review can point at the exact source. — `lib/batch-intermediate.ts`
 5. **Pure modules for every rule.** Normalizers, validators, planners, matchers import nothing server-only, so they're fixture-testable without mocks. 50+ test files ride on this. — `lib/build-listing.ts`, `lib/plan.ts`, `lib/batch-validate.ts`, `lib/tier.ts`
 6. **Fail-soft per item, honest-degrade per feature.** One dead URL / bad row / failed photo never sinks the batch. Missing config (no DB, no token, no browser) returns a loud no-op, never a fake "clean" result. Nothing is ever fabricated. — `lib/source-spider.ts`, `lib/batch-verify.ts`, `lib/geocode.ts`
-7. **Writes are planned, dry-run by default, and idempotent.** A pure planner produces the exact request ledger; `FLOWSPACE_DRY_RUN=1` is the default; uploaded artifacts use deterministic paths (hash of source URL) so re-runs overwrite instead of orphaning. — `lib/plan.ts`, `lib/push.ts`, `lib/photos.ts`
+7. **Writes are planned, dry-run by default, and idempotent.** A pure planner produces the exact request ledger; a `DRY_RUN=1` env flag is the default; uploaded artifacts use deterministic paths (hash of source URL) so re-runs overwrite instead of orphaning. — `lib/plan.ts`, `lib/push.ts`, `lib/photos.ts`
 8. **Human edits are training signal.** The AI draft vs the human-final record is diffed over editable keys and stored. That's your accuracy metric and eval set for free. — `lib/feedback.ts`
 
 ## 4. Stage-by-stage mapping
@@ -93,7 +93,7 @@ WritePlan      [{ method, path, body }]            -> executed only when DRY_RUN
 FieldChange    { field, ai, final }                -> feedback table
 ```
 
-The listing tool's names map as: building/site → **entity**, private office row → **item**, listing → **record**, amenities/facilities enum → **closed vocabulary**, FlowSpace API → **target**.
+The listing tool's names map as: building/site → **entity**, private office row → **item**, listing → **record**, amenities/facilities enum → **closed vocabulary**, backend API → **target**.
 
 ## 6. What to copy, adapt, drop
 
@@ -109,7 +109,7 @@ The listing tool's names map as: building/site → **entity**, private office ro
 - `lib/batch-validate.ts`, `lib/tier.ts` → your reconciliation + completeness rules
 - `lib/plan.ts` / `lib/push.ts` → your target API
 
-**Drop (FlowSpace-specific):**
+**Drop (domain-specific):**
 - `lib/marketplaces.ts`, `lib/browser.ts`, `lib/officehub-extract.ts`, `lib/geocode.ts`, `lib/photo-select.ts`, `lib/photos.ts`, `lib/description-spec.ts`, `lib/backlog.ts`, `PORT_LEDGER.md` + parity (Python-port artifacts)
 
 ## 7. Build sequence
@@ -159,7 +159,7 @@ Total core (P1–P7): roughly 7–9 working days.
 
 ## 11. Code reference (verbatim from the repo)
 
-Every block below is copied unmodified from the source repo with `sed -n START,ENDp` — line numbers are exact at commit `f18fca9`. Nothing in the repo was edited. Domain names (office, site, listing, pcm) are left as-is; read them through the mapping in §5.
+Every block below is copied from the source repo with `sed -n START,ENDp` — line numbers are exact at commit `f18fca9`. Code is unmodified; only product/company names in comments are replaced with neutral terms. Domain names (office, site, listing, pcm) are left as-is; read them through the mapping in §5.
 
 ### Classify by magic bytes (invariant 6, stage 2)
 
@@ -717,7 +717,7 @@ export const hardFail = (checks: Check[]): boolean => checks.some((c) => !c.ok &
 `lib/tier.ts:1-10` — strict completeness check before skipping review
 
 ```ts
-// Is a draft complete enough to push to FlowSpace WITHOUT a human first? The auto-push "safe tier".
+// Is a draft complete enough to push to the backend WITHOUT a human first? The auto-push "safe tier".
 // Deliberately strict: a listing must have a name, an address, real coordinates (a venue with null
 // lat/lng stays hidden on the site), a cover image, and at least one listable office. Anything short
 // of this stays in /review for a person. Ported intent from the Python agent's tiered-approve.
